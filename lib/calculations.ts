@@ -101,3 +101,72 @@ export const generateSerialDilution = (
   
   return dilutions;
 };
+
+export const solveMolesSet = (params: { mass?: number; molarMass?: number; moles?: number }) => {
+  const { mass, molarMass, moles } = params;
+  const missing = [mass, molarMass, moles].filter(v => v === undefined || isNaN(v)).length;
+  if (missing !== 1) throw new Error('Provide exactly two of mass, molarMass, moles');
+  if (moles === undefined) return { mass: mass!, molarMass: molarMass!, moles: mass! / molarMass! };
+  if (mass === undefined) return { mass: moles * molarMass!, molarMass: molarMass!, moles };
+  return { mass: mass!, molarMass: mass! / moles, moles };
+};
+
+export const solveMolaritySet = (params: { moles?: number; volumeL?: number; molarity?: number }) => {
+  const { moles, volumeL, molarity } = params;
+  const missing = [moles, volumeL, molarity].filter(v => v === undefined || isNaN(v)).length;
+  if (missing !== 1) throw new Error('Provide exactly two of moles, volume, molarity');
+  if (molarity === undefined) return { moles: moles!, volumeL: volumeL!, molarity: moles! / volumeL! };
+  if (moles === undefined) return { moles: molarity * volumeL!, volumeL: volumeL!, molarity };
+  return { moles: moles!, volumeL: moles! / molarity!, molarity };
+};
+
+export const solveNormalitySet = (params: { normality?: number; molarity?: number; equivalents?: number }) => {
+  const { normality, molarity, equivalents } = params;
+  const missing = [normality, molarity, equivalents].filter(v => v === undefined || isNaN(v)).length;
+  if (missing !== 1) throw new Error('Provide exactly two of normality, molarity, equivalents');
+  if (normality === undefined) return { normality: molarity! * equivalents!, molarity: molarity!, equivalents: equivalents! };
+  if (molarity === undefined) return { normality: normality!, molarity: normality! / equivalents!, equivalents: equivalents! };
+  return { normality: normality!, molarity: molarity!, equivalents: normality! / molarity! };
+};
+
+export const solveDilutionSet = (params: { C1?: number; V1?: number; C2?: number; V2?: number }) => {
+  const { C1, V1, C2, V2 } = params;
+  const list = [C1, V1, C2, V2];
+  const missing = list.filter(v => v === undefined || isNaN(v)).length;
+  if (missing !== 1) throw new Error('Provide exactly three of C1,V1,C2,V2');
+  if (C1 === undefined) return { C1: (C2! * V2!) / V1!, V1: V1!, C2: C2!, V2: V2! };
+  if (V1 === undefined) return { C1: C1!, V1: (C2! * V2!) / C1!, C2: C2!, V2: V2! };
+  if (C2 === undefined) return { C1: C1!, V1: V1!, C2: (C1! * V1!) / V2!, V2: V2! };
+  return { C1: C1!, V1: V1!, C2: C2!, V2: (C1! * V1!) / C2! };
+};
+
+export const solveMolalitySet = (params: { massSolute?: number; molarMass?: number; massSolventKg?: number; molality?: number }) => {
+  const { massSolute, molarMass, massSolventKg, molality } = params;
+  const arr = [massSolute, molarMass, massSolventKg, molality];
+  const missing = arr.filter(v => v === undefined || isNaN(v)).length;
+  if (missing !== 1) throw new Error('Provide exactly three of massSolute, molarMass, massSolventKg, molality');
+  if (molality === undefined) return { massSolute: massSolute!, molarMass: molarMass!, massSolventKg: massSolventKg!, molality: (massSolute! / molarMass!) / massSolventKg! };
+  if (massSolute === undefined) return { massSolute: molality! * molarMass! * massSolventKg!, molarMass: molarMass!, massSolventKg: massSolventKg!, molality };
+  if (molarMass === undefined) return { massSolute: massSolute!, molarMass: massSolute! / (molality! * massSolventKg!), massSolventKg: massSolventKg!, molality };
+  return { massSolute: massSolute!, molarMass: molarMass!, massSolventKg: (massSolute! / molarMass!) / molality!, molality };
+};
+
+export const solveBeerLambertSet = (params: { absorbance?: number; molarAbsorptivity?: number; pathLength?: number; concentration?: number }) => {
+  const { absorbance, molarAbsorptivity, pathLength, concentration } = params;
+  const arr = [absorbance, molarAbsorptivity, pathLength, concentration];
+  const missing = arr.filter(v => v === undefined || isNaN(v)).length;
+  if (missing !== 1) throw new Error('Provide exactly three of A, ε, l, c');
+  if (concentration === undefined) return { absorbance: absorbance!, molarAbsorptivity: molarAbsorptivity!, pathLength: pathLength!, concentration: absorbance! / (molarAbsorptivity! * pathLength!) };
+  if (absorbance === undefined) return { absorbance: molarAbsorptivity! * concentration! * pathLength!, molarAbsorptivity: molarAbsorptivity!, pathLength: pathLength!, concentration: concentration! };
+  if (molarAbsorptivity === undefined) return { absorbance: absorbance!, molarAbsorptivity: absorbance! / (concentration! * pathLength!), pathLength: pathLength!, concentration: concentration! };
+  return { absorbance: absorbance!, molarAbsorptivity: molarAbsorptivity!, pathLength: absorbance! / (molarAbsorptivity! * concentration!), concentration: concentration! };
+};
+
+export const massForMolarSolution = (molarity: number, volumeL: number, molarMass: number): number => {
+  return molarity * volumeL * molarMass; // g
+};
+
+export const massForNormalSolution = (normality: number, volumeL: number, molarMass: number, equivalents: number): number => {
+  const eqWeight = molarMass / equivalents;
+  return normality * volumeL * eqWeight; // g
+};

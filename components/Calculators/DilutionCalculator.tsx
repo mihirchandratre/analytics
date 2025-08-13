@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Copy, FlaskConical, SeparatorVertical as Separator } from 'lucide-react';
-import { calculateStockVolume, generateSerialDilution } from '@/lib/calculations';
+import { calculateStockVolume, generateSerialDilution, solveDilutionSet } from '@/lib/calculations';
 import { saveCalculation } from '@/lib/localStorage';
 import { toast } from 'sonner';
 
 export default function DilutionCalculator() {
   const [c1, setC1] = useState('');
   const [c2, setC2] = useState('');
+  const [v1, setV1] = useState('');
   const [v2, setV2] = useState('');
   const [unit, setUnit] = useState('mL');
   const [result, setResult] = useState<{
@@ -30,29 +31,46 @@ export default function DilutionCalculator() {
   const [serialResults, setSerialResults] = useState<any[] | null>(null);
 
   const calculateDilution = () => {
-    const c1Num = parseFloat(c1);
-    const c2Num = parseFloat(c2);
-    const v2Num = parseFloat(v2);
+    const C1 = c1 ? parseFloat(c1) : undefined;
+    const C2 = c2 ? parseFloat(c2) : undefined;
+    const V1 = v1 ? parseFloat(v1) : undefined;
+    const V2 = v2 ? parseFloat(v2) : undefined;
 
-    if (!c1Num || !c2Num || !v2Num) {
-      toast.error('Please enter all values');
+    if ([C1, C2, V1, V2].filter(v => v !== undefined && !isNaN(v!)).length < 3) {
+      toast.error('Provide any three of C1, V1, C2, V2');
       return;
     }
 
-    const v1 = calculateStockVolume(c1Num, c2Num, v2Num);
-    const addVolume = v2Num - v1;
-    const formula = `C₁V₁ = C₂V₂\nV₁ = (C₂ × V₂) / C₁ = (${c2Num} × ${v2Num}) / ${c1Num} = ${v1.toPrecision(6)} ${unit}`;
+    let solved;
+    try {
+      solved = solveDilutionSet({ C1, V1, C2, V2 });
+    } catch (e:any) {
+      toast.error(e.message);
+      return;
+    }
 
-    const newResult = { v1, formula };
-    setResult(newResult);
+    let solvedVar = '';
+    if (C1 === undefined) solvedVar = 'C₁';
+    else if (V1 === undefined) solvedVar = 'V₁';
+    else if (C2 === undefined) solvedVar = 'C₂';
+    else if (V2 === undefined) solvedVar = 'V₂';
+    else solvedVar = 'Check';
 
-    // Save to localStorage
+    const formula = `C₁V₁ = C₂V₂ → ${solvedVar} solved\n(${solved.C1} × ${solved.V1}) = (${solved.C2} × ${solved.V2})`;
+
+    setResult({ v1: solved.V1, formula });
+
     saveCalculation({
       type: 'Dilution',
-      description: `From ${c1Num}M to ${c2Num}M, ${v2Num}${unit} final → take ${v1.toPrecision(6)}${unit} stock`,
+      description: `Solved ${solvedVar}: C1=${solved.C1}, V1=${solved.V1}${unit}, C2=${solved.C2}, V2=${solved.V2}${unit}`,
       formula,
-      result: `Take ${v1.toPrecision(6)} ${unit} stock + ${addVolume.toPrecision(6)} ${unit} diluent`
+      result: `${solvedVar} = ${solvedVar === 'V₁' ? solved.V1.toPrecision(6) + ' ' + unit : solvedVar === 'C₁' ? solved.C1.toPrecision(6) : solvedVar === 'C₂' ? solved.C2.toPrecision(6) : solved.V2.toPrecision(6)}`
     });
+
+    setC1(solved.C1.toString());
+    setC2(solved.C2.toString());
+    setV1(solved.V1.toString());
+    setV2(solved.V2.toString());
   };
 
   const calculateSerial = () => {
@@ -89,6 +107,7 @@ export default function DilutionCalculator() {
   const clear = () => {
     setC1('');
     setC2('');
+    setV1('');
     setV2('');
     setResult(null);
   };
@@ -155,6 +174,17 @@ export default function DilutionCalculator() {
                 />
               </div>
               <div>
+                <Label htmlFor="v1">Stock Volume (V₁) ({unit})</Label>
+                <Input
+                  id="v1"
+                  type="number"
+                  step="any"
+                  value={v1}
+                  onChange={(e) => setV1(e.target.value)}
+                  placeholder="leave blank to solve"
+                />
+              </div>
+              <div>
                 <Label htmlFor="v2">Final Volume (V₂)</Label>
                 <Input
                   id="v2"
@@ -166,6 +196,10 @@ export default function DilutionCalculator() {
                 />
               </div>
             </div>
+          </div>
+
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Enter any three (C₁, V₁, C₂, V₂); leave the one to solve blank.
           </div>
 
           <div className="flex gap-3">

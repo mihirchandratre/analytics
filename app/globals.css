@@ -43,6 +43,7 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+    --brand: 208 72% 52%; /* PATIKS primary (approx #2081E2) */
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -69,6 +70,7 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+    --brand: 208 82% 60%;
   }
 }
 
@@ -80,3 +82,30 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Optional brand text utility */
+@layer utilities {
+  .text-brand {
+    color: hsl(var(--brand));
+  }
+  .bg-brand {
+    background-color: hsl(var(--brand));
+  }
+}
+
+@layer components {
+  .brand-badge {
+    @apply inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white/70 dark:bg-gray-800/70 px-2 py-0.5 text-[11px] font-medium tracking-wide text-gray-700 dark:text-gray-200;
+    background-image: url('/logo.png');
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+    background-position: 6px center;
+    padding-left: 24px;
+  }
+}
+
+/* NOTE: Ensure favicons show by adding (in app/layout.tsx <head>): 
+   <link rel="icon" href="/favicon.ico" />
+   <link rel="manifest" href="/favicon/manifest.json" />
+   <meta name="msapplication-config" content="/favicon/browserconfig.xml" />
+*/

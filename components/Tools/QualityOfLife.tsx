@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,7 @@ import { Download, Printer, History, Trash2 } from 'lucide-react';
 import { getCalculations, clearCalculations, downloadCalculationsAsExcel } from '@/lib/localStorage';
 import { Calculation } from '@/types';
 import { toast } from 'sonner';
+import FooterBranding from '@/components/Layout/FooterBranding';
 
 export default function QualityOfLife() {
   const [calculations, setCalculations] = useState<Calculation[]>([]);
@@ -32,12 +34,41 @@ export default function QualityOfLife() {
     toast.success('Calculations exported to CSV/Excel format');
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleGeneratePdf = async () => {
+    if (!calculations.length) {
+      toast.error('No calculations to export');
+      return;
+    }
+    try {
+      const { exportCalculationsPdf } = await import('@/lib/pdf');
+      exportCalculationsPdf(calculations);
+      toast.success('PDF generated');
+    } catch (e) {
+      toast.error('PDF generation failed');
+    }
   };
 
   return (
     <div className="space-y-6">
+      {/* Brand header (reintroduces visible branding) */}
+      <div className="flex items-center gap-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+        <Image
+          src="/logo/logo.png"
+          alt="PATIKS logo"
+          width={42}
+          height={42}
+          className="rounded-md bg-white p-1 border border-gray-200 dark:border-gray-600 shadow-sm"
+        />
+        <div>
+          <h1 className="text-lg font-semibold tracking-wide text-gray-800 dark:text-gray-100">
+            PATIKS
+          </h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Precision Analytical Toolkit
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-700">
           <CardContent className="p-6">
@@ -58,12 +89,12 @@ export default function QualityOfLife() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-green-800 dark:text-green-200">Print Worksheet</h3>
-                <p className="text-sm text-green-600 dark:text-green-300 mt-1">Print-friendly format</p>
+                <h3 className="font-semibold text-green-800 dark:text-green-200">Export PDF</h3>
+                <p className="text-sm text-green-600 dark:text-green-300 mt-1">Branded report</p>
               </div>
-              <Button onClick={handlePrint} className="bg-green-500 hover:bg-green-600">
+              <Button onClick={handleGeneratePdf} className="bg-green-500 hover:bg-green-600">
                 <Printer className="w-4 h-4 mr-2" />
-                Print
+                PDF
               </Button>
             </div>
           </CardContent>
@@ -164,7 +195,7 @@ export default function QualityOfLife() {
             </li>
             <li className="flex items-start gap-2">
               <span className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-2 flex-shrink-0" />
-              Use the print function to create physical worksheets for lab documentation
+              Generate a branded PDF report to archive or share your calculation history
             </li>
             <li className="flex items-start gap-2">
               <span className="w-1.5 h-1.5 bg-purple-400 rounded-full mt-2 flex-shrink-0" />
@@ -173,6 +204,7 @@ export default function QualityOfLife() {
           </ul>
         </CardContent>
       </Card>
+
     </div>
   );
 }

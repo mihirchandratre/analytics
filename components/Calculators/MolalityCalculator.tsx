@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Copy, Droplets } from 'lucide-react';
-import { calculateMolality } from '@/lib/calculations';
+import { calculateMolality, solveMolalitySet } from '@/lib/calculations';
 import { reagents } from '@/lib/constants';
 import { saveCalculation } from '@/lib/localStorage';
 import { toast } from 'sonner';
@@ -17,6 +17,7 @@ export default function MolalityCalculator() {
   const [massSolute, setMassSolute] = useState('');
   const [molarMass, setMolarMass] = useState('');
   const [massSolvent, setMassSolvent] = useState('');
+  const [molalityInput, setMolalityInput] = useState('');
   const [result, setResult] = useState<{
     molality: number;
     formula: string;
@@ -30,29 +31,50 @@ export default function MolalityCalculator() {
   };
 
   const calculate = () => {
-    const massSoluteNum = parseFloat(massSolute);
-    const molarMassNum = parseFloat(molarMass);
-    const massSolventNum = parseFloat(massSolvent);
+    const massSoluteNum = massSolute ? parseFloat(massSolute) : undefined;
+    const molarMassNum = molarMass ? parseFloat(molarMass) : undefined;
+    const massSolventNum = massSolvent ? parseFloat(massSolvent) : undefined;
+    const molalityNum = molalityInput ? parseFloat(molalityInput) : undefined;
 
-    if (!massSoluteNum || !molarMassNum || !massSolventNum) {
-      toast.error('Please enter all values');
+    if ([massSoluteNum, molarMassNum, massSolventNum, molalityNum].filter(v => v !== undefined && !isNaN(v!)).length < 3) {
+      toast.error('Provide any three of mass solute, molar mass, solvent mass, molality');
       return;
     }
 
-    const molality = calculateMolality(massSoluteNum, molarMassNum, massSolventNum);
-    const moles = massSoluteNum / molarMassNum;
-    const formula = `m = (n_solute) / (kg_solvent) = (${massSoluteNum}g / ${molarMassNum}g/mol) / ${massSolventNum}kg = ${moles.toPrecision(4)} mol / ${massSolventNum}kg = ${molality.toPrecision(6)} mol/kg`;
+    let solved;
+    try {
+      solved = solveMolalitySet({
+        massSolute: massSoluteNum,
+        molarMass: molarMassNum,
+        massSolventKg: massSolventNum,
+        molality: molalityNum
+      });
+    } catch (e:any) {
+      toast.error(e.message);
+      return;
+    }
 
-    const newResult = { molality, formula };
-    setResult(newResult);
+    let step: string;
+    if (molalityNum === undefined) step = `m = (m_solute / Mr) / kg_solvent = (${solved.massSolute} / ${solved.molarMass}) / ${solved.massSolventKg} = ${solved.molality.toPrecision(6)} mol/kg`;
+    else if (massSoluteNum === undefined) step = `m_solute = m × Mr × kg_solvent = ${solved.molality} × ${solved.molarMass} × ${solved.massSolventKg} = ${solved.massSolute.toPrecision(6)} g`;
+    else if (molarMassNum === undefined) step = `Mr = m_solute / (m × kg_solvent) = ${solved.massSolute} / (${solved.molality} × ${solved.massSolventKg}) = ${solved.molarMass.toPrecision(6)} g/mol`;
+    else if (massSolventNum === undefined) step = `kg_solvent = (m_solute / Mr) / m = (${solved.massSolute} / ${solved.molarMass}) / ${solved.molality} = ${solved.massSolventKg.toPrecision(6)} kg`;
+    else step = `Check: m = (m_solute/Mr)/kg_solvent = (${solved.massSolute}/${solved.molarMass})/${solved.massSolventKg} = ${solved.molality.toPrecision(6)} mol/kg`;
 
-    // Save to localStorage
+    const formula = step;
+    setResult({ molality: solved.molality, formula });
+
     saveCalculation({
       type: 'Molality',
-      description: `${massSoluteNum}g / ${molarMassNum}g/mol in ${massSolventNum}kg solvent = ${molality.toPrecision(6)} m`,
+      description: step,
       formula,
-      result: `${molality.toPrecision(6)} mol/kg`
+      result: `${solved.molality.toPrecision(6)} mol/kg`
     });
+
+    setMassSolute(solved.massSolute.toString());
+    setMolarMass(solved.molarMass.toString());
+    setMassSolvent(solved.massSolventKg.toString());
+    setMolalityInput(solved.molality.toString());
   };
 
   const copyResult = () => {
@@ -67,6 +89,7 @@ export default function MolalityCalculator() {
     setMassSolute('');
     setMolarMass('');
     setMassSolvent('');
+    setMolalityInput('');
     setResult(null);
   };
 
@@ -136,13 +159,14 @@ export default function MolalityCalculator() {
               />
             </div>
             <div>
-              <Label>Calculated Molality</Label>
+              <Label htmlFor="molality">Molality (mol/kg)</Label>
               <Input
+                id="molality"
                 type="number"
-                value={result?.molality.toPrecision(6) || ''}
-                readOnly
-                placeholder="Will be calculated"
-                className="bg-gray-50 dark:bg-gray-800"
+                step="any"
+                value={molalityInput}
+                onChange={(e) => setMolalityInput(e.target.value)}
+                placeholder="leave blank to solve"
               />
             </div>
           </div>
@@ -155,6 +179,10 @@ export default function MolalityCalculator() {
           <Button variant="outline" onClick={clear}>
             Clear
           </Button>
+        </div>
+
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          Enter any three variables; leave the one to solve blank.
         </div>
 
         {result && (

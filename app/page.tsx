@@ -21,6 +21,8 @@ import QualityOfLife from '@/components/Tools/QualityOfLife';
 
 // Reference components
 import ReferenceTables from '@/components/Reference/ReferenceTables';
+import SolutionPreparationCalculator from '@/components/Calculators/SolutionPreparationCalculator';
+import FooterBranding from '@/components/Layout/FooterBranding';
 
 export default function Home() {
   const tabs: Tab[] = [
@@ -65,6 +67,11 @@ export default function Home() {
       component: SimpleCalculators,
     },
     {
+      id: 'solution-prep',
+      label: 'Solution Prep',
+      component: SolutionPreparationCalculator,
+    },
+    {
       id: 'reference',
       label: 'Reference',
       component: ReferenceTables,
@@ -87,16 +94,11 @@ export default function Home() {
         <Header />
         <FeatureSummary />
         <TabNavigation tabs={tabs} />
+
+      <FooterBranding />
+
         
-        <footer className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-600 dark:text-gray-300">
-          <p>
-            Professional pharmaceutical analyst toolkit built with Next.js & Tailwind CSS
-            <br />
-            <span className="text-xs opacity-75">
-              Save calculations locally • Export to Excel • Print-friendly • Dark mode support
-            </span>
-          </p>
-        </footer>
+       
       </div>
       <Toaster />
     </main>

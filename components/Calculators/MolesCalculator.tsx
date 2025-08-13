@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Copy, Beaker } from 'lucide-react';
-import { calculateMoles, calculateMolarity } from '@/lib/calculations';
+import { calculateMoles, calculateMolarity, solveMolesSet, solveMolaritySet } from '@/lib/calculations';
 import { reagents } from '@/lib/constants';
 import { saveCalculation } from '@/lib/localStorage';
 import { toast } from 'sonner';
@@ -17,6 +17,8 @@ export default function MolesCalculator() {
   const [mass, setMass] = useState('');
   const [molarMass, setMolarMass] = useState('');
   const [volume, setVolume] = useState('');
+  const [molesInput, setMolesInput] = useState('');
+  const [molarityInput, setMolarityInput] = useState('');
   const [result, setResult] = useState<{
     moles: number;
     molarity?: number;
@@ -31,34 +33,61 @@ export default function MolesCalculator() {
   };
 
   const calculate = () => {
-    const massNum = parseFloat(mass);
-    const mmNum = parseFloat(molarMass);
-    const volNum = parseFloat(volume);
+    const massNum = mass ? parseFloat(mass) : undefined;
+    const mmNum = molarMass ? parseFloat(molarMass) : undefined;
+    const molesNum = molesInput ? parseFloat(molesInput) : undefined;
 
-    if (!massNum || !mmNum) {
-      toast.error('Please enter mass and molar mass');
+    let primary;
+    try {
+      if ([massNum, mmNum, molesNum].filter(v => v !== undefined && !isNaN(v!)).length < 2) {
+        toast.error('Provide any two of mass, molar mass, moles');
+        return;
+      }
+      primary = solveMolesSet({ mass: massNum, molarMass: mmNum, moles: molesNum });
+    } catch (e:any) {
+      toast.error(e.message);
       return;
     }
 
-    const moles = calculateMoles(massNum, mmNum);
-    let molarity: number | undefined;
-    let formula = `n = m / Mr = ${massNum} / ${mmNum} = ${moles.toPrecision(6)} mol`;
-
-    if (volNum) {
-      molarity = calculateMolarity(moles, volNum);
-      formula += `\nM = n / V = ${moles.toPrecision(6)} / ${volNum} = ${molarity.toPrecision(6)} M`;
+    // Second relation (molarity) among moles, volume, molarity
+    const volNum = volume ? parseFloat(volume) : undefined;
+    const molarityNum = molarityInput ? parseFloat(molarityInput) : undefined;
+    let molarity: number | undefined = undefined;
+    let solvedMolaritySet;
+    let molarityFormula = '';
+    if ([primary.moles, volNum, molarityNum].filter(v => v !== undefined && !isNaN(v!)).length >= 2) {
+      try {
+        solvedMolaritySet = solveMolaritySet({ moles: primary.moles, volumeL: volNum, molarity: molarityNum });
+        molarity = solvedMolaritySet.molarity;
+        molarityFormula = `M = n / V → ${solvedMolaritySet.molarity.toPrecision(6)} = ${solvedMolaritySet.moles.toPrecision(6)} / ${solvedMolaritySet.volumeL}`;
+      } catch {
+        // ignore if unsatisfied
+      }
     }
 
-    const newResult = { moles, molarity, formula };
-    setResult(newResult);
+    // Build formula explanation
+    let formula = '';
+    if (molesNum === undefined) formula += `n = m / Mr = ${primary.mass} / ${primary.molarMass} = ${primary.moles.toPrecision(6)} mol`;
+    else if (massNum === undefined) formula += `m = n × Mr = ${primary.moles} × ${primary.molarMass} = ${primary.mass.toPrecision(6)} g`;
+    else if (mmNum === undefined) formula += `Mr = m / n = ${primary.mass} / ${primary.moles} = ${primary.molarMass.toPrecision(6)} g/mol`;
+    else formula += `Checked: n = m / Mr = ${massNum} / ${mmNum} = ${primary.moles.toPrecision(6)} mol`;
 
-    // Save to localStorage
+    if (molarity) formula += `\n${molarityFormula}`;
+
+    setResult({ moles: primary.moles, molarity, formula });
+
     saveCalculation({
       type: 'Moles/Molarity',
-      description: `${massNum}g / ${mmNum}g/mol = ${moles.toPrecision(6)} mol${molarity ? ` (${molarity.toPrecision(6)} M)` : ''}`,
+      description: formula.split('\n')[0],
       formula,
-      result: `${moles.toPrecision(6)} mol${molarity ? `, ${molarity.toPrecision(6)} M` : ''}`
+      result: `${primary.moles.toPrecision(6)} mol${molarity ? `, ${molarity.toPrecision(6)} M` : ''}`
     });
+
+    // reflect solved values back into inputs
+    setMass(primary.mass.toString());
+    setMolarMass(primary.molarMass.toString());
+    setMolesInput(primary.moles.toString());
+    if (molarity) setMolarityInput(molarity.toString());
   };
 
   const copyResult = () => {
@@ -73,6 +102,8 @@ export default function MolesCalculator() {
     setMass('');
     setMolarMass('');
     setVolume('');
+    setMolesInput('');
+    setMolarityInput('');
     setResult(null);
   };
 
@@ -129,6 +160,17 @@ export default function MolesCalculator() {
                 </Select>
               </div>
             </div>
+            <div>
+              <Label htmlFor="moles">Moles (mol)</Label>
+              <Input
+                id="moles"
+                type="number"
+                step="any"
+                value={molesInput}
+                onChange={(e) => setMolesInput(e.target.value)}
+                placeholder="leave blank to solve"
+              />
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -144,13 +186,14 @@ export default function MolesCalculator() {
               />
             </div>
             <div>
-              <Label>Calculated Moles</Label>
+              <Label htmlFor="molarity">Molarity (M)</Label>
               <Input
+                id="molarity"
                 type="number"
-                value={result?.moles.toPrecision(6) || ''}
-                readOnly
-                placeholder="Will be calculated"
-                className="bg-gray-50 dark:bg-gray-800"
+                step="any"
+                value={molarityInput}
+                onChange={(e) => setMolarityInput(e.target.value)}
+                placeholder="leave blank to solve"
               />
             </div>
           </div>
@@ -163,6 +206,10 @@ export default function MolesCalculator() {
           <Button variant="outline" onClick={clear}>
             Clear
           </Button>
+        </div>
+
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          Enter any two of (mass, molar mass, moles) and optionally one of (moles, volume, molarity). Leave the one you want solved blank.
         </div>
 
         {result && (

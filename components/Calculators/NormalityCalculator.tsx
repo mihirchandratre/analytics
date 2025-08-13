@@ -7,40 +7,54 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Copy, FlaskConical } from 'lucide-react';
-import { calculateNormality } from '@/lib/calculations';
+import { calculateNormality, solveNormalitySet } from '@/lib/calculations';
 import { saveCalculation } from '@/lib/localStorage';
 import { toast } from 'sonner';
 
 export default function NormalityCalculator() {
   const [molarity, setMolarity] = useState('');
   const [equivalents, setEquivalents] = useState('1');
+  const [normalityInput, setNormalityInput] = useState('');
   const [result, setResult] = useState<{
     normality: number;
     formula: string;
   } | null>(null);
 
   const calculate = () => {
-    const molarityNum = parseFloat(molarity);
-    const equivalentsNum = parseFloat(equivalents);
+    const N = normalityInput ? parseFloat(normalityInput) : undefined;
+    const M = molarity ? parseFloat(molarity) : undefined;
+    const n = equivalents ? parseFloat(equivalents) : undefined;
 
-    if (!molarityNum || !equivalentsNum) {
-      toast.error('Please enter molarity and equivalents per mole');
+    if ([N, M, n].filter(v => v !== undefined && !isNaN(v!)).length < 2) {
+      toast.error('Provide any two of Normality, Molarity, Equivalents');
+      return;
+    }
+    let solved;
+    try {
+      solved = solveNormalitySet({ normality: N, molarity: M, equivalents: n });
+    } catch (e:any) {
+      toast.error(e.message);
       return;
     }
 
-    const normality = calculateNormality(molarityNum, equivalentsNum);
-    const formula = `N = M × n = ${molarityNum} × ${equivalentsNum} = ${normality.toPrecision(6)} N`;
+    let formula: string;
+    if (N === undefined) formula = `N = M × n = ${solved.molarity} × ${solved.equivalents} = ${solved.normality.toPrecision(6)} N`;
+    else if (M === undefined) formula = `M = N / n = ${solved.normality} / ${solved.equivalents} = ${solved.molarity.toPrecision(6)} M`;
+    else if (n === undefined) formula = `n = N / M = ${solved.normality} / ${solved.molarity} = ${solved.equivalents.toPrecision(6)} equiv/mol`;
+    else formula = `Check: N = M × n = ${solved.molarity} × ${solved.equivalents} = ${solved.normality.toPrecision(6)} N`;
 
-    const newResult = { normality, formula };
-    setResult(newResult);
+    setResult({ normality: solved.normality, formula });
 
-    // Save to localStorage
     saveCalculation({
       type: 'Normality',
-      description: `${molarityNum} M × ${equivalentsNum} equiv = ${normality.toPrecision(6)} N`,
+      description: formula,
       formula,
-      result: `${normality.toPrecision(6)} N`
+      result: `${solved.normality.toPrecision(6)} N`
     });
+
+    setNormalityInput(solved.normality.toString());
+    setMolarity(solved.molarity.toString());
+    setEquivalents(solved.equivalents.toString());
   };
 
   const copyResult = () => {
@@ -54,6 +68,7 @@ export default function NormalityCalculator() {
   const clear = () => {
     setMolarity('');
     setEquivalents('1');
+    setNormalityInput('');
     setResult(null);
   };
 
@@ -71,6 +86,17 @@ export default function NormalityCalculator() {
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
+            <div>
+              <Label htmlFor="normality-input">Normality (N)</Label>
+              <Input
+                id="normality-input"
+                type="number"
+                step="any"
+                value={normalityInput}
+                onChange={(e) => setNormalityInput(e.target.value)}
+                placeholder="leave blank to solve"
+              />
+            </div>
             <div>
               <Label htmlFor="molarity-input">Molarity (M)</Label>
               <Input
@@ -97,20 +123,10 @@ export default function NormalityCalculator() {
 
           <div className="space-y-4">
             <div>
-              <Label>Calculated Normality (N)</Label>
-              <Input
-                type="number"
-                value={result?.normality.toPrecision(6) || ''}
-                readOnly
-                placeholder="Will be calculated"
-                className="bg-gray-50 dark:bg-gray-800"
-              />
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-              <p><strong>Common equivalents:</strong></p>
-              <p>• HCl, NaOH: 1 equiv/mol</p>
-              <p>• H₂SO₄, Ca(OH)₂: 2 equiv/mol</p>
-              <p>• H₃PO₄: 3 equiv/mol</p>
+              <Label>Hint</Label>
+              <div className="text-xs text-gray-600 dark:text-gray-300">
+                Enter any two of (Normality, Molarity, Equivalents). Leave the one to solve blank.
+              </div>
             </div>
           </div>
         </div>

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Copy, TestTube, Activity } from 'lucide-react';
-import { calculateTitrationNormality, calculateBeerLambert } from '@/lib/calculations';
+import { calculateTitrationNormality, calculateBeerLambert, solveBeerLambertSet } from '@/lib/calculations';
 import { saveCalculation } from '@/lib/localStorage';
 import { toast } from 'sonner';
 
@@ -26,6 +26,7 @@ export default function UnknownConcentrationCalculator() {
   const [absorbance, setAbsorbance] = useState('');
   const [pathLength, setPathLength] = useState('1');
   const [molarAbsorptivity, setMolarAbsorptivity] = useState('');
+  const [concentrationInput, setConcentrationInput] = useState('');
   const [beerResult, setBeerResult] = useState<{
     concentration: number;
     formula: string;
@@ -58,28 +59,46 @@ export default function UnknownConcentrationCalculator() {
   };
 
   const calculateBeer = () => {
-    const aNum = parseFloat(absorbance);
-    const lNum = parseFloat(pathLength);
-    const epsNum = parseFloat(molarAbsorptivity);
+    const A = absorbance ? parseFloat(absorbance) : undefined;
+    const lNum = pathLength ? parseFloat(pathLength) : undefined;
+    const eps = molarAbsorptivity ? parseFloat(molarAbsorptivity) : undefined;
+    const c = concentrationInput ? parseFloat(concentrationInput) : undefined;
 
-    if (!aNum && aNum !== 0 || !lNum || !epsNum) {
-      toast.error('Please enter all Beer-Lambert values');
+    if ([A, lNum, eps, c].filter(v => v !== undefined && !isNaN(v!)).length < 3) {
+      toast.error('Provide any three of A, ε, l, c');
       return;
     }
 
-    const concentration = calculateBeerLambert(aNum, epsNum, lNum);
-    const formula = `A = ε × c × l\nc = A / (ε × l) = ${aNum} / (${epsNum} × ${lNum}) = ${concentration.toPrecision(6)} M`;
+    let solved;
+    try {
+      solved = solveBeerLambertSet({ absorbance: A, molarAbsorptivity: eps, pathLength: lNum, concentration: c });
+    } catch (e:any) {
+      toast.error(e.message);
+      return;
+    }
 
-    const newResult = { concentration, formula };
-    setBeerResult(newResult);
+    let solvedVar = '';
+    if (A === undefined) solvedVar = 'A';
+    else if (eps === undefined) solvedVar = 'ε';
+    else if (lNum === undefined) solvedVar = 'l';
+    else if (c === undefined) solvedVar = 'c';
+    else solvedVar = 'Check';
 
-    // Save to localStorage
+    const formula = `A = ε c l → solved ${solvedVar}\n${solved.absorbance.toPrecision(6)} = ${solved.molarAbsorptivity.toPrecision(6)} × ${solved.concentration.toPrecision(6)} × ${solved.pathLength.toPrecision(6)}`;
+
+    setBeerResult({ concentration: solved.concentration, formula });
+
     saveCalculation({
       type: 'Beer-Lambert',
-      description: `A=${aNum}, ε=${epsNum}, l=${lNum}cm`,
+      description: `Solved ${solvedVar}: A=${solved.absorbance}, ε=${solved.molarAbsorptivity}, l=${solved.pathLength}, c=${solved.concentration}`,
       formula,
-      result: `${concentration.toPrecision(6)} M`
+      result: `c=${solved.concentration.toPrecision(6)} M`
     });
+
+    setAbsorbance(solved.absorbance.toString());
+    setMolarAbsorptivity(solved.molarAbsorptivity.toString());
+    setPathLength(solved.pathLength.toString());
+    setConcentrationInput(solved.concentration.toString());
   };
 
   const copyTitrationResult = () => {
@@ -110,6 +129,7 @@ export default function UnknownConcentrationCalculator() {
     setAbsorbance('');
     setPathLength('1');
     setMolarAbsorptivity('');
+    setConcentrationInput('');
     setBeerResult(null);
   };
 
@@ -269,13 +289,13 @@ export default function UnknownConcentrationCalculator() {
                 />
               </div>
               <div>
-                <Label>Calculated Concentration (M)</Label>
+                <Label>Concentration (c, M)</Label>
                 <Input
                   type="number"
-                  value={beerResult?.concentration.toPrecision(6) || ''}
-                  readOnly
-                  placeholder="Will be calculated"
-                  className="bg-gray-50 dark:bg-gray-800"
+                  step="any"
+                  value={concentrationInput}
+                  onChange={(e) => setConcentrationInput(e.target.value)}
+                  placeholder="leave blank to solve"
                 />
               </div>
             </div>
@@ -288,6 +308,10 @@ export default function UnknownConcentrationCalculator() {
             <Button variant="outline" onClick={clearBeer}>
               Clear
             </Button>
+          </div>
+
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Enter any three of (A, ε, l, c); leave the one to solve blank.
           </div>
 
           {beerResult && (
